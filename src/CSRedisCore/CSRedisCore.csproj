@@ -4,7 +4,7 @@
 		<AssemblyName>CSRedisCore</AssemblyName>
 		<PackageId>CSRedisCore</PackageId>
 		<RootNamespace>CSRedisCore</RootNamespace>
-		<Version>3.8.803-laiye</Version>
+		<Version>3.8.804-laiye</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageProjectUrl>https://github.com/2881099/csredis</PackageProjectUrl>
 		<Description>CSRedis 是 redis.io 官方推荐库，支持 redis-trib集群、哨兵、私有分区与连接池管理技术，简易 RedisHelper 静态类。</Description>
@@ -27,13 +27,13 @@
 	</PropertyGroup>
 	
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="System.ValueTuple" Version="4.5.0" />
 	</ItemGroup>
 	
 	<ItemGroup>
 	  <PackageReference Include="Microsoft.Extensions.Logging">
-	    <Version>8.0.0</Version>
+	    <Version>6.0.0</Version>
 	  </PackageReference>
 	</ItemGroup>
 	
