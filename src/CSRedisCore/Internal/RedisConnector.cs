@@ -135,6 +135,7 @@ namespace CSRedis.Internal
             //	return _autoPipeline.EnqueueAsync(command);
 
             //Console.WriteLine("--------------CallAsync");
+            ConnectIfNotConnected();
             await _io.WriteAsync(command);
             //_io.Stream.BeginRead()
             return command.Parse(_io.Reader);

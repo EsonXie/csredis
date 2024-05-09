@@ -1,4 +1,5 @@
 ﻿using CSRedis;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -9,7 +10,7 @@ namespace CSRedisCore.Tests
     {
 		//测试 redis-cluster 不能设置 defaultDatabase
 
-		protected CSRedisClient rds = new CSRedisClient("192.168.164.10,defaultDatabase=0,poolsize=3,tryit=0");
+		protected CSRedisClient rds = new CSRedisClient("192.168.164.10,defaultDatabase=0,poolsize=3,tryit=0", LoggerFactory.Create(logging => { }));
 
 		protected readonly object Null = null;
 		protected readonly string String = "我是中国人";

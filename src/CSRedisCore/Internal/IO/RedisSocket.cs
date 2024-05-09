@@ -49,7 +49,16 @@ namespace CSRedis.Internal.IO
 
             IAsyncResult result = _socket.BeginConnect(endpoint, null, null);
             if (!result.AsyncWaitHandle.WaitOne(timeout, true))
+            {
+                _socket.Close();
                 throw new RedisSocketException("Connect to server timeout");
+            }
+            _socket.EndConnect(result);
+
+            if(!_socket.Connected)
+            {
+                throw new RedisSocketException("Socket is not connected");
+            }
         }
 
 #if net40
@@ -98,9 +107,12 @@ namespace CSRedis.Internal.IO
         {
             if (isDisposed) return;
             isDisposed = true;
-            try { _socket.Shutdown(SocketShutdown.Both); } catch { }
-            try { _socket.Close(); } catch { }
-            try { _socket.Dispose(); } catch { }
+            if (_socket != null)
+            {
+                try { _socket.Shutdown(SocketShutdown.Both); } catch { }
+                try { _socket.Close(); } catch { }
+                try { _socket.Dispose(); } catch { }
+            }
         }
 
         void InitSocket(EndPoint endpoint)

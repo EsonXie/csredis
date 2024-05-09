@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text;
@@ -7,40 +8,40 @@ using System.Threading.Tasks;
 
 namespace CSRedis.Internal.ObjectPool
 {
-    internal class TestTrace
-    {
-        internal static void WriteLine(string text, ConsoleColor backgroundColor)
-        {
-            try //#643
-            {
-                var bgcolor = Console.BackgroundColor;
-                var forecolor = Console.ForegroundColor;
-                Console.BackgroundColor = backgroundColor;
+    //internal class TestTrace
+    //{
+    //    internal static void WriteLine(string text, ConsoleColor backgroundColor)
+    //    {
+    //        try //#643
+    //        {
+    //            var bgcolor = Console.BackgroundColor;
+    //            var forecolor = Console.ForegroundColor;
+    //            Console.BackgroundColor = backgroundColor;
 
-                switch (backgroundColor)
-                {
-                    case ConsoleColor.Yellow:
-                        Console.ForegroundColor = ConsoleColor.White;
-                        break;
-                    case ConsoleColor.DarkGreen:
-                        Console.ForegroundColor = ConsoleColor.White;
-                        break;
-                }
-                Console.Write(text);
-                Console.BackgroundColor = bgcolor;
-                Console.ForegroundColor = forecolor;
-                Console.WriteLine();
-            }
-            catch
-            {
-                try
-                {
-                    System.Diagnostics.Debug.WriteLine(text);
-                }
-                catch { }
-            }
-        }
-    }
+    //            switch (backgroundColor)
+    //            {
+    //                case ConsoleColor.Yellow:
+    //                    Console.ForegroundColor = ConsoleColor.White;
+    //                    break;
+    //                case ConsoleColor.DarkGreen:
+    //                    Console.ForegroundColor = ConsoleColor.White;
+    //                    break;
+    //            }
+    //            Console.Write(text);
+    //            Console.BackgroundColor = bgcolor;
+    //            Console.ForegroundColor = forecolor;
+    //            Console.WriteLine();
+    //        }
+    //        catch
+    //        {
+    //            try
+    //            {
+    //                System.Diagnostics.Debug.WriteLine(text);
+    //            }
+    //            catch { }
+    //        }
+    //    }
+    //}
 
     /// <summary>
     /// 对象池管理类
@@ -65,6 +66,7 @@ namespace CSRedis.Internal.ObjectPool
         private object UnavailableLock = new object();
         private bool running = true;
 
+        protected ILogger Logger { get; }
         public bool SetUnavailable(Exception exception, DateTime lastGetTime)
         {
             bool isseted = false;
@@ -101,7 +103,9 @@ namespace CSRedis.Internal.ObjectPool
             new Thread(() =>
             {
                 if (UnavailableException != null)
-                    TestTrace.WriteLine($"【{Policy.Name}】Next recovery time：{DateTime.Now.AddSeconds(interval)}", ConsoleColor.DarkYellow);
+                {
+                    Logger.LogDebug($"【{Policy.Name}】Next recovery time：{DateTime.Now.AddSeconds(interval)}");
+                }
 
                 while (UnavailableException != null)
                 {
@@ -135,7 +139,7 @@ namespace CSRedis.Internal.ObjectPool
                     }
                     catch (Exception ex)
                     {
-                        TestTrace.WriteLine($"【{Policy.Name}】Next recovery time: {DateTime.Now.AddSeconds(interval)} ({ex.Message})", ConsoleColor.DarkYellow);
+                        Logger.LogDebug(ex, $"【{Policy.Name}】Next recovery time: {DateTime.Now.AddSeconds(interval)} ({ex.Message})");
                     }
                 }
 
@@ -167,7 +171,7 @@ namespace CSRedis.Internal.ObjectPool
             if (isRestored)
             {
                 Policy.OnAvailable();
-                TestTrace.WriteLine($"【{Policy.Name}】Recovered", ConsoleColor.DarkGreen);
+                Logger.LogDebug($"【{Policy.Name}】Recovered");
             }
         }
 
@@ -221,15 +225,18 @@ namespace CSRedis.Internal.ObjectPool
         /// <param name="poolsize">池大小</param>
         /// <param name="createObject">池内对象的创建委托</param>
         /// <param name="onGetObject">获取池内对象成功后，进行使用前操作</param>
-        public ObjectPool(int poolsize, Func<T> createObject, Action<Object<T>> onGetObject = null) : this(new DefaultPolicy<T> { PoolSize = poolsize, CreateObject = createObject, OnGetObject = onGetObject })
+        public ObjectPool(int poolsize, Func<T> createObject, ILogger<ObjectPool<T>> logger, Action<Object<T>> onGetObject = null) 
+            : this(new DefaultPolicy<T> { PoolSize = poolsize, CreateObject = createObject, OnGetObject = onGetObject }, logger)
         {
         }
+
         /// <summary>
         /// 创建对象池
         /// </summary>
         /// <param name="policy">策略</param>
-        public ObjectPool(IPolicy<T> policy)
+        public ObjectPool(IPolicy<T> policy, ILogger<ObjectPool<T>> logger)
         {
+            Logger = logger;
             Policy = policy;
 
             AppDomain.CurrentDomain.ProcessExit += (s1, e1) =>
