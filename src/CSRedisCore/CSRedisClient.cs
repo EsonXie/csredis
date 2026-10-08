@@ -1466,7 +1466,10 @@ namespace CSRedis
             public string[] Channels { get; }
             public (string[] chans, Object<RedisClient> conn)[] Subscrs { get; }
             internal Dictionary<string, Action<SubscribeMessageEventArgs>> OnMessageDic;
-            public bool IsUnsubscribed { get; private set; } = true;
+
+            private volatile bool _isUnsubscribed = true;
+            private int _disposedState;
+            public bool IsUnsubscribed => _isUnsubscribed;
 
             private ILogger Logger { get; }
 
@@ -1480,7 +1483,7 @@ namespace CSRedis
                 this.Channels = channels;
                 this.Subscrs = subscrs;
                 this.OnMessageDic = onMessageDic;
-                this.IsUnsubscribed = false;
+                this._isUnsubscribed = false;
 
                 Logger = logger;
 
@@ -1654,7 +1657,8 @@ namespace CSRedis
 
             public void Dispose()
             {
-                this.IsUnsubscribed = true;
+                if (Interlocked.CompareExchange(ref this._disposedState, 1, 0) == 1) return;
+                this._isUnsubscribed = true;
                 if (this.Subscrs != null)
                 {
                     foreach (var subscr in this.Subscrs)
@@ -1664,6 +1668,7 @@ namespace CSRedis
                         subscr.conn.Pool.Return(subscr.conn, true);
                     }
                 }
+                // 任务4：this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class SubscribeMessageEventArgs

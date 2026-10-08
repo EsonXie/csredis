@@ -11,7 +11,9 @@ namespace CSRedisCore.Tests
 {
     /// <summary>
     /// SubscribeObject 生命周期测试：不依赖真实 Redis（fake 池 + null 连接值）。
-    /// 注意：连接值为 null，订阅线程若启动会在 Ping 处 NRE 并进入 3s 重试循环，
+    /// 注意：连接值为 null，订阅线程若启动会在 conn.Value 事件挂接处
+    /// （conn.Value.SubscriptionReceived += ...）因未处理 NRE 立即死亡，
+    /// 该挂接先于 while 循环与 Ping、位于任何 try 之前，线程不会进入 3s 重试循环；
     /// 因此"未调用 Start 前不启动线程"与"Dispose 后连接只归还一次"是可断言的确定性边界。
     /// </summary>
     public class SubscribeObjectLifecycleTests
@@ -64,7 +66,30 @@ namespace CSRedisCore.Tests
             so.Start();
             so.Dispose();
             Assert.True(so.IsUnsubscribed);
-            Thread.Sleep(200); // 给订阅线程退出时间（Value 为 null，立即 NRE 并因 IsUnsubscribed 退出）
+            Thread.Sleep(200); // 给订阅线程退出时间（Value 为 null，线程在求值 IsUnsubscribed 之前已于 conn.Value 事件挂接处未处理 NRE 死亡）
+            Assert.Equal(1, pool.ReturnCount);
+        }
+
+        [Fact]
+        public void Dispose_Twice_ReturnsConnectionOnce()
+        {
+            var pool = new FakePool();
+            var so = CreateUnstarted(pool);
+            so.Dispose();
+            so.Dispose();
+            so.Dispose();
+            Assert.Equal(1, pool.ReturnCount);
+        }
+
+        [Fact]
+        public void Start_Then_DisposeTwice_ReturnsConnectionOnce()
+        {
+            var pool = new FakePool();
+            var so = CreateUnstarted(pool);
+            so.Start();
+            so.Dispose();
+            so.Dispose();
+            Thread.Sleep(200);
             Assert.Equal(1, pool.ReturnCount);
         }
     }
