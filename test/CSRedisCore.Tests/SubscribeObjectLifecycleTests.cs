@@ -91,5 +91,39 @@ namespace CSRedisCore.Tests
             Thread.Sleep(200);
             Assert.Equal(1, pool.ReturnCount);
         }
+
+        // PSubscribeObject：连接值为 null，PSubscribe 线程若启动会在入口 null 守卫处（PSubscribe 方法解包后）安静返回，
+        // 不进入 while 循环与 Ping、不会进入 3s 重试循环；
+        // 构造函数不启动线程，须显式 Start()，Dispose 幂等（CAS），与 SubscribeObject 同一模式。
+        private static CSRedisClient.PSubscribeObject CreatePUnstarted(FakePool pool)
+        {
+            var conn = CSRedis.Internal.ObjectPool.Object<RedisClient>.InitWith(pool, 1, null);
+            return new CSRedisClient.PSubscribeObject(
+                redis: null,
+                channels: new[] { "chan1*" },
+                redisConnections: new[] { conn },
+                onPMessage: _ => { },
+                logger: new LoggerFactory().CreateLogger<CSRedisClient.PSubscribeObject>());
+        }
+
+        [Fact]
+        public void PSubscribeObject_DisposeTwice_ReturnsConnectionOnce()
+        {
+            var pool = new FakePool();
+            var so = CreatePUnstarted(pool);
+            so.Dispose();
+            so.Dispose();
+            Assert.Equal(1, pool.ReturnCount);
+        }
+
+        [Fact]
+        public void PSubscribeObject_ConstructWithoutStart_DoesNotReturnConnection()
+        {
+            var pool = new FakePool();
+            var so = CreatePUnstarted(pool);
+            Thread.Sleep(200);
+            Assert.Equal(0, pool.ReturnCount);
+            Assert.False(so.IsPUnsubscribed);
+        }
     }
 }

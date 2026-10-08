@@ -1702,15 +1702,19 @@ namespace CSRedis
                 redisConnections.Add(pool.Value.Get());
 
             var so = new PSubscribeObject(this, chans, redisConnections.ToArray(), pmessage, LoggerFactory.CreateLogger<PSubscribeObject>());
+            so.Start();
             return so;
         }
         public class PSubscribeObject : IDisposable
         {
             internal CSRedisClient Redis;
             public string[] Channels { get; }
-            internal Action<PSubscribePMessageEventArgs> OnPMessage;
             public Object<RedisClient>[] RedisConnections { get; }
-            public bool IsPUnsubscribed { get; private set; } = true;
+            internal Action<PSubscribePMessageEventArgs> OnPMessage;
+
+            private volatile bool _isPUnsubscribed = true;
+            private int _disposedState;
+            public bool IsPUnsubscribed => _isPUnsubscribed;
 
             private ILogger Logger { get; }
 
@@ -1720,7 +1724,7 @@ namespace CSRedis
                 this.Channels = channels;
                 this.RedisConnections = redisConnections;
                 this.OnPMessage = onPMessage;
-                this.IsPUnsubscribed = false;
+                this._isPUnsubscribed = false;
 
                 AppDomain.CurrentDomain.ProcessExit += (s1, e1) =>
                 {
@@ -1736,16 +1740,24 @@ namespace CSRedis
                 }
                 catch { }
 
+                Logger = logger;
+            }
+
+            /// <summary>
+            /// 启动模糊订阅线程（由 CSRedisClient.PSubscribe 在注册跟踪后调用）。
+            /// </summary>
+            internal void Start()
+            {
                 foreach (var conn in this.RedisConnections)
                 {
                     new Thread(PSubscribe).Start(conn);
                 }
-                Logger = logger;
             }
 
             private void PSubscribe(object state)
             {
                 var conn = (Object<RedisClient>)state;
+                if (conn?.Value == null) return;
                 var pool = conn.Pool as RedisClientPool;
                 var psubscribeKey = string.Join("pSpLiT", Channels);
 
@@ -1802,7 +1814,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                 };
                 conn.Value.SubscriptionReceived += SubscriptionReceived;
 
-                while (true)
+                while (this._isPUnsubscribed == false)
                 {
                     try
                     {
@@ -1855,7 +1867,8 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
 
             public void Dispose()
             {
-                this.IsPUnsubscribed = true;
+                if (Interlocked.CompareExchange(ref this._disposedState, 1, 0) == 1) return;
+                this._isPUnsubscribed = true;
                 if (this.RedisConnections != null)
                 {
                     foreach (var conn in this.RedisConnections)
@@ -1865,6 +1878,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                         conn.Pool.Return(conn, true);
                     }
                 }
+                // 任务4：this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class PSubscribePMessageEventArgs : SubscribeMessageEventArgs
