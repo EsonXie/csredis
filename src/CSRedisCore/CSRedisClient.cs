@@ -1516,6 +1516,7 @@ namespace CSRedis
             private void Subscribe(object state)
             {
                 var subscr = ((string[] chans, Object<RedisClient> conn))state;
+                if (subscr.conn?.Value == null) return;
                 var pool = subscr.conn.Pool as RedisClientPool;
                 var testCSRedis_Subscribe_Keepalive = "0\r\n";// $"CSRedis_Subscribe_Keepalive{Guid.NewGuid().ToString()}";
                 var testKeepalived = true;
