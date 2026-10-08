@@ -411,8 +411,35 @@ namespace CSRedis
             }
         }
 
+        /// <summary>
+        /// 订阅对象注册表：Subscribe/PSubscribe/SubscribeList/SubscribeListBroadcast 产物统一跟踪，
+        /// 客户端 Dispose 时先全部离线，避免订阅专用线程与其借出的池连接泄漏。
+        /// </summary>
+        private readonly List<IDisposable> _subscribeObjects = new List<IDisposable>();
+        private readonly object _subscribeObjectsLock = new object();
+
+        internal void TrackSubscribeObject(IDisposable so)
+        {
+            lock (_subscribeObjectsLock) _subscribeObjects.Add(so);
+        }
+
+        internal void UntrackSubscribeObject(IDisposable so)
+        {
+            lock (_subscribeObjectsLock) _subscribeObjects.Remove(so);
+        }
+
         public void Dispose()
         {
+            IDisposable[] subs;
+            lock (_subscribeObjectsLock)
+            {
+                subs = _subscribeObjects.ToArray();
+                _subscribeObjects.Clear();
+            }
+            foreach (var sub in subs)
+            {
+                try { sub.Dispose(); } catch { }
+            }
             foreach (var pool in this.Nodes.Values) pool.Dispose();
             SentinelManager?.Dispose();
         }
@@ -1457,6 +1484,7 @@ namespace CSRedis
             }
 
             var so = new SubscribeObject(this, chans, subscrs.ToArray(), onmessages, LoggerFactory.CreateLogger<SubscribeObject>());
+            this.TrackSubscribeObject(so);
             so.Start();
             return so;
         }
@@ -1669,7 +1697,7 @@ namespace CSRedis
                         subscr.conn.Pool.Return(subscr.conn, true);
                     }
                 }
-                // 任务4：this.Redis?.UntrackSubscribeObject(this);
+                this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class SubscribeMessageEventArgs
@@ -1702,6 +1730,7 @@ namespace CSRedis
                 redisConnections.Add(pool.Value.Get());
 
             var so = new PSubscribeObject(this, chans, redisConnections.ToArray(), pmessage, LoggerFactory.CreateLogger<PSubscribeObject>());
+            this.TrackSubscribeObject(so);
             so.Start();
             return so;
         }
@@ -1878,7 +1907,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                         conn.Pool.Return(conn, true);
                     }
                 }
-                // 任务4：this.Redis?.UntrackSubscribeObject(this);
+                this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class PSubscribePMessageEventArgs : SubscribeMessageEventArgs
@@ -2007,6 +2036,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
             //Console.ForegroundColor = forecolor;
             //Console.WriteLine();
 
+            this.TrackSubscribeObject(subobj);
             new Thread(() =>
             {
                 while (subobj.IsUnsubscribed == false)

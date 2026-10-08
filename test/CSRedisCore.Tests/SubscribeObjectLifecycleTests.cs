@@ -138,5 +138,38 @@ namespace CSRedisCore.Tests
             Assert.True(so.IsPUnsubscribed);
             Assert.Equal(1, pool.ReturnCount);
         }
+
+        // CSRedisClient 订阅注册表：客户端 Dispose 必须先离线全部已跟踪订阅对象、再释放连接池。
+        // new CSRedisClient("127.0.0.1:6379") 仅构建连接池对象，不建立网络连接（本 fork 需显式传入 LoggerFactory）。
+        [Fact]
+        public void ClientDispose_OfflinesAllTrackedSubscriptions()
+        {
+            var pool1 = new FakePool();
+            var pool2 = new FakePool();
+            using var client = new CSRedisClient("127.0.0.1:6379", new LoggerFactory());
+            var so1 = CreateUnstarted(pool1);
+            var so2 = CreateUnstarted(pool2);
+            client.TrackSubscribeObject(so1);
+            client.TrackSubscribeObject(so2);
+
+            client.Dispose();
+
+            Assert.True(so1.IsUnsubscribed);
+            Assert.True(so2.IsUnsubscribed);
+            Assert.Equal(1, pool1.ReturnCount);
+            Assert.Equal(1, pool2.ReturnCount);
+        }
+
+        [Fact]
+        public void ClientDispose_AfterManualDispose_DoesNotDoubleReturn()
+        {
+            var pool1 = new FakePool();
+            using var client = new CSRedisClient("127.0.0.1:6379", new LoggerFactory());
+            var so1 = CreateUnstarted(pool1);
+            client.TrackSubscribeObject(so1);
+            so1.Dispose();          // 先手动离线（已 Untrack + 已归还）
+            client.Dispose();       // 注册表已无 so1，不得重复归还
+            Assert.Equal(1, pool1.ReturnCount);
+        }
     }
 }
