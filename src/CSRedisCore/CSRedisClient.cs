@@ -1457,6 +1457,7 @@ namespace CSRedis
             }
 
             var so = new SubscribeObject(this, chans, subscrs.ToArray(), onmessages, LoggerFactory.CreateLogger<SubscribeObject>());
+            so.Start();
             return so;
         }
         public class SubscribeObject : IDisposable
@@ -1496,7 +1497,13 @@ namespace CSRedis
                     };
                 }
                 catch { }
+            }
 
+            /// <summary>
+            /// 启动订阅线程（由 CSRedisClient.Subscribe 在注册跟踪后调用，保证订阅对象先被跟踪再开始收发）。
+            /// </summary>
+            internal void Start()
+            {
                 foreach (var subscr in this.Subscrs)
                 {
                     new Thread(Subscribe).Start(subscr);

@@ -19,6 +19,10 @@
 		<AssemblyOriginatorKeyFile>key.snk</AssemblyOriginatorKeyFile>
 		<DelaySign>false</DelaySign>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="CSRedisCore.Tests, PublicKey=0024000004800000940000000602000000240000525341310004000001000100a1350bffa6dbda001f10216235648fbdf0c453aa8787d1ea622f6a51eacd3706744935d0b8222f0f1970fc2f4a8c7b201d710860dc97fcebdca0b91ea20a99f02ced42a2084e2576b17082d1410cd7566a04497cb8abafa14282184feaab155ba885b2b1fb2fa96f36dcd2335786a276af0ae0b5b65c75bd2949663d500d21b8" />
+	</ItemGroup>
 	
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<DocumentationFile>bin\Debug\netstandard2.0\CSRedisCore.xml</DocumentationFile>
