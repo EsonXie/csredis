@@ -1,11 +1,11 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
-using System.Net.Sockets;
 using System.Text;
 
 namespace CSRedis.Internal.IO
 {
-    internal partial class RedisReader
+	internal partial class RedisReader
     {
         readonly RedisIO _io;
 
@@ -36,7 +36,7 @@ namespace CSRedis.Internal.IO
                 ExpectType(RedisMessage.Int);
 
             string line = ReadLine();
-            return Int64.Parse(line.ToString());
+            return Int64.Parse(line.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat);
         }
 
         public object ReadBulk(bool checkType = true, bool asString = false)
@@ -185,24 +185,30 @@ namespace CSRedis.Internal.IO
 
         string ReadLine()
         {
-            StringBuilder sb = new StringBuilder();
-            char c;
-            bool should_break = false;
-            while (true)
-            {
-                c = (char)_io.ReadByte();
-                if (c == '\r') // TODO: remove hardcoded
-                    should_break = true;
-                else if (c == '\n' && should_break)
-                    break;
-                else
-                {
-                    sb.Append(c);
-                    should_break = false;
-                }
-            }
-            //Console.WriteLine($"ReadLine: {sb.ToString()}");
-            return sb.ToString();
+			if (!_io.Stream.CanRead)
+			{
+				return string.Empty;
+			}
+			StringBuilder stringBuilder = new StringBuilder();
+			bool flag = false;
+			int c = -1;
+			//Judgment _io.ReadByte() of return -1
+			while ((c = _io.ReadByte()) != -1)
+			{
+				if ((char)c == '\r')
+				{
+					flag = true;
+					continue;
+				}
+				//Judgment '\r\n',or only '\n'
+				if (((char)c == '\n') || ((char)c == '\n' && flag))
+				{
+					break;
+				}
+				stringBuilder.Append((char)c);
+				flag = false;
+			}
+			return stringBuilder.ToString();
         }
 
         void ExpectBytesRead(long expecting, long actual)

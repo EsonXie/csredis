@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -26,6 +27,8 @@ namespace CSRedis
         RedisClient _redisClient;
         bool _readOnly;
 
+        private ILogger Logger { get; }
+
         /// <summary>
         /// Occurs when the master connection has sucessfully connected
         /// </summary>
@@ -35,8 +38,9 @@ namespace CSRedis
         /// Create a new RedisSentinenlManager
         /// </summary>
         /// <param name="sentinels">Sentinel addresses (host:ip)</param>
-        public RedisSentinelManager(bool readOnly, params string[] sentinels)
+        public RedisSentinelManager(bool readOnly, ILogger<RedisSentinelManager> logger, params string[] sentinels)
         {
+            Logger = logger;
             _readOnly = readOnly;
             _sentinels = new LinkedList<Tuple<string, int>>();
             foreach (var host in sentinels)
@@ -194,7 +198,8 @@ namespace CSRedis
                     }
                     catch (Exception ex)
                     {
-                        Trace.WriteLine(ex.Message);
+                        Logger.LogDebug(ex, ex.Message);
+                        //Trace.WriteLine(ex.Message);
                         //Console.WriteLine(ex.Message);
                         continue;
                     }
@@ -251,7 +256,8 @@ namespace CSRedis
                         }
                         catch (Exception ex)
                         {
-                            Trace.WriteLine(ex.Message);
+                            Logger.LogDebug(ex, ex.Message);
+                            //Trace.WriteLine(ex.Message);
                             //Console.WriteLine(ex.Message);
                             continue;
                         }

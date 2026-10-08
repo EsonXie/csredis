@@ -10,13 +10,13 @@ using System.Threading;
 using System.Diagnostics;
 using System.Linq;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 
 namespace CSRedis
 {
     public class RedisClientPool : ObjectPool<RedisClient>
     {
-
-        public RedisClientPool(string connectionString, Action<RedisClient> onConnected) : base(null)
+        public RedisClientPool(string connectionString, Action<RedisClient> onConnected, ILogger<ObjectPool<RedisClient>> logger) : base(null, logger)
         {
             _policy = new RedisClientPoolPolicy
             {
@@ -60,10 +60,7 @@ namespace CSRedis
                     {
                         if (!obj.Value.IsConnected) obj.Value.Connect(_policy._connectTimeout);
                         obj.Value.Ping();
-
-
-                        Trace.TraceWarning($"\ncsreids 错误【{Policy.Name}】：{exception.Message} {exception.StackTrace}\n");
-
+                        Logger.LogDebug($"csreids 错误【{Policy.Name}】：{exception.Message} {exception.StackTrace}");
                         //var fcolor = Console.ForegroundColor;
                         //Console.WriteLine($"");
                         //Console.ForegroundColor = ConsoleColor.DarkYellow;

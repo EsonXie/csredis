@@ -1,10 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<TargetFrameworks>netstandard2.0;net45;net40</TargetFrameworks>
+		<TargetFrameworks>net6.0</TargetFrameworks>
 		<AssemblyName>CSRedisCore</AssemblyName>
 		<PackageId>CSRedisCore</PackageId>
 		<RootNamespace>CSRedisCore</RootNamespace>
-		<Version>3.8.669</Version>
+		<Version>3.8.806-laiye</Version>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 		<PackageProjectUrl>https://github.com/2881099/csredis</PackageProjectUrl>
 		<Description>CSRedis 是 redis.io 官方推荐库，支持 redis-trib集群、哨兵、私有分区与连接池管理技术，简易 RedisHelper 静态类。</Description>
@@ -19,6 +19,10 @@
 		<AssemblyOriginatorKeyFile>key.snk</AssemblyOriginatorKeyFile>
 		<DelaySign>false</DelaySign>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="CSRedisCore.Tests, PublicKey=0024000004800000940000000602000000240000525341310004000001000100a1350bffa6dbda001f10216235648fbdf0c453aa8787d1ea622f6a51eacd3706744935d0b8222f0f1970fc2f4a8c7b201d710860dc97fcebdca0b91ea20a99f02ced42a2084e2576b17082d1410cd7566a04497cb8abafa14282184feaab155ba885b2b1fb2fa96f36dcd2335786a276af0ae0b5b65c75bd2949663d500d21b8" />
+	</ItemGroup>
 	
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<DocumentationFile>bin\Debug\netstandard2.0\CSRedisCore.xml</DocumentationFile>
@@ -27,8 +31,14 @@
 	</PropertyGroup>
 	
 	<ItemGroup>
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="System.ValueTuple" Version="4.5.0" />
+	</ItemGroup>
+	
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.Extensions.Logging">
+	    <Version>8.0.0</Version>
+	  </PackageReference>
 	</ItemGroup>
 	
 	<PropertyGroup Condition="'$(TargetFramework)' == 'net40'">

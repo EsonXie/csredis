@@ -1,17 +1,19 @@
-using Newtonsoft.Json;
 using CSRedis.Internal.ObjectPool;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using System.IO;
 
 namespace CSRedis
 {
-    public partial class CSRedisClient : IDisposable
+	public partial class CSRedisClient : IDisposable
     {
         /// <summary>
         /// 按 key 规则分区存储
@@ -136,40 +138,40 @@ namespace CSRedis
                         else if (valueStr == "0") obj = false;
                         break;
                     case "System.Byte":
-                        if (byte.TryParse(valueStr, out var trybyte)) obj = trybyte;
+                        if (byte.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var trybyte)) obj = trybyte;
                         break;
                     case "System.Char":
                         if (valueStr.Length > 0) obj = valueStr[0];
                         break;
                     case "System.Decimal":
-                        if (Decimal.TryParse(valueStr, out var trydec)) obj = trydec;
+                        if (Decimal.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var trydec)) obj = trydec;
                         break;
                     case "System.Double":
-                        if (Double.TryParse(valueStr, out var trydb)) obj = trydb;
+                        if (Double.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var trydb)) obj = trydb;
                         break;
                     case "System.Single":
-                        if (Single.TryParse(valueStr, out var trysg)) obj = trysg;
+                        if (Single.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var trysg)) obj = trysg;
                         break;
                     case "System.Int32":
-                        if (Int32.TryParse(valueStr, out var tryint32)) obj = tryint32;
+                        if (Int32.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryint32)) obj = tryint32;
                         break;
                     case "System.Int64":
-                        if (Int64.TryParse(valueStr, out var tryint64)) obj = tryint64;
+                        if (Int64.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryint64)) obj = tryint64;
                         break;
                     case "System.SByte":
-                        if (SByte.TryParse(valueStr, out var trysb)) obj = trysb;
+                        if (SByte.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var trysb)) obj = trysb;
                         break;
                     case "System.Int16":
-                        if (Int16.TryParse(valueStr, out var tryint16)) obj = tryint16;
+                        if (Int16.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryint16)) obj = tryint16;
                         break;
                     case "System.UInt32":
-                        if (UInt32.TryParse(valueStr, out var tryuint32)) obj = tryuint32;
+                        if (UInt32.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryuint32)) obj = tryuint32;
                         break;
                     case "System.UInt64":
-                        if (UInt64.TryParse(valueStr, out var tryuint64)) obj = tryuint64;
+                        if (UInt64.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryuint64)) obj = tryuint64;
                         break;
                     case "System.UInt16":
-                        if (UInt16.TryParse(valueStr, out var tryuint16)) obj = tryuint16;
+                        if (UInt16.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryuint16)) obj = tryuint16;
                         break;
                     case "System.DateTime":
                         if (DateTime.TryParse(valueStr, out var trydt)) obj = trydt;
@@ -178,7 +180,7 @@ namespace CSRedis
                         if (DateTimeOffset.TryParse(valueStr, out var trydtos)) obj = trydtos;
                         break;
                     case "System.TimeSpan":
-                        if (Int64.TryParse(valueStr, out tryint64)) obj = new TimeSpan(tryint64);
+                        if (Int64.TryParse(valueStr, NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out tryint64)) obj = new TimeSpan(tryint64);
                         break;
                     case "System.Guid":
                         if (Guid.TryParse(valueStr, out var tryguid)) obj = tryguid;
@@ -232,7 +234,7 @@ namespace CSRedis
         /// 创建redis访问类(支持单机或集群)
         /// </summary>
         /// <param name="connectionString">127.0.0.1[:6379],password=123456,defaultDatabase=13,poolsize=50,ssl=false,writeBuffer=10240,prefix=key前辍</param>
-        public CSRedisClient(string connectionString) : this(null, new string[0], false, null, connectionString) { }
+        public CSRedisClient(string connectionString, ILoggerFactory loggerFactory) : this(null, new string[0], false, loggerFactory, null, connectionString) { }
 
         /// <summary>
         /// 创建redis哨兵访问类(Redis Sentinel)
@@ -240,7 +242,8 @@ namespace CSRedis
         /// <param name="connectionString">mymaster,password=123456,poolsize=50,connectTimeout=200,ssl=false</param>
         /// <param name="sentinels">哨兵节点，如：ip1:26379、ip2:26379</param>
         /// <param name="readOnly">false: 只获取master节点进行读写操作<para></para>true: 只获取可用slave节点进行只读操作</param>
-        public CSRedisClient(string connectionString, string[] sentinels, bool readOnly = false) : this(null, sentinels, readOnly, null, connectionString) { }
+        public CSRedisClient(string connectionString, string[] sentinels, ILoggerFactory loggerFactory, bool readOnly = false) 
+            : this(null, sentinels, readOnly, loggerFactory, null, connectionString) { }
 
         /// <summary>
         /// 创建redis哨兵访问类(Redis Sentinel) <see cref="CSRedisClient"/> 
@@ -249,17 +252,25 @@ namespace CSRedis
         /// <param name="sentinels">哨兵节点，如：ip1:26379、ip2:26379</param>
         /// <param name="readOnly">false: 只获取master节点进行读写操作<para></para>true: 只获取可用slave节点进行只读操作</param>
         /// <param name="convert">哨兵主机转换规则</param>
-        public CSRedisClient(string connectionString, string[] sentinels, bool readOnly, SentinelMasterConverter convert) : this(null, sentinels, readOnly, convert, connectionString) { }
+        public CSRedisClient(string connectionString, string[] sentinels, bool readOnly, ILoggerFactory loggerFactory, SentinelMasterConverter convert) 
+            : this(null, sentinels, readOnly, loggerFactory, convert, connectionString) { }
 
         /// <summary>
         /// 创建redis分区访问类，通过 KeyRule 对 key 进行分区，连接对应的 connectionString
         /// </summary>
         /// <param name="NodeRule">按key分区规则，返回值格式：127.0.0.1:6379/13，默认方案(null)：取key哈希与节点数取模</param>
         /// <param name="connectionStrings">127.0.0.1[:6379],password=123456,defaultDatabase=13,poolsize=50,ssl=false,writeBuffer=10240,prefix=key前辍</param>
-        public CSRedisClient(Func<string, string> NodeRule, params string[] connectionStrings) : this(NodeRule, null, false, null, connectionStrings) { }
+        public CSRedisClient(Func<string, string> NodeRule, ILoggerFactory loggerFactory, params string[] connectionStrings) : this(NodeRule, null, false, loggerFactory, null, connectionStrings) { }
 
-        protected CSRedisClient(Func<string, string> NodeRule, string[] sentinels, bool readOnly, SentinelMasterConverter convert = null, params string[] connectionStrings)
+        private ILoggerFactory LoggerFactory { get; }
+
+        private ILogger Logger { get; }
+
+        protected CSRedisClient(Func<string, string> NodeRule, string[] sentinels, bool readOnly, ILoggerFactory loggerFactory, SentinelMasterConverter convert = null, params string[] connectionStrings)
         {
+            LoggerFactory = loggerFactory;
+            Logger = LoggerFactory.CreateLogger<CSRedisClient>();
+
             if (connectionStrings == null || !connectionStrings.Any()) throw new Exception("Redis ConnectionString 未设置");
             var tmppoolPolicy = new RedisClientPoolPolicy();
             tmppoolPolicy.ConnectionString = connectionStrings.First() + ",preheat=false";
@@ -267,7 +278,7 @@ namespace CSRedis
             if (sentinels?.Any() == true)
             {
                 if (connectionStrings.Length > 1) throw new Exception("Redis Sentinel 不可设置多个 ConnectionString");
-                SentinelManager = new RedisSentinelManager(readOnly, sentinels);
+                SentinelManager = new RedisSentinelManager(readOnly, LoggerFactory.CreateLogger<RedisSentinelManager>(), sentinels);
                 SentinelManager.SentinelMasterConverter = convert;
                 SentinelManager.Connected += (s, e) =>
                 {
@@ -339,7 +350,7 @@ namespace CSRedis
                         connStr = $"{SentinelMasterValue}{connStr}";
                 }
 
-                var pool = new RedisClientPool(connStr, client => { });
+                var pool = new RedisClientPool(connStr, client => { }, LoggerFactory.CreateLogger<RedisClientPool>());
                 var nodeKey = SentinelMasterName ?? pool.Key;
                 if (Nodes.ContainsKey(nodeKey)) throw new Exception($"Node: {nodeKey} 重复，请检查");
                 if (this.TryAddNode(nodeKey, pool) == false)
@@ -400,8 +411,35 @@ namespace CSRedis
             }
         }
 
+        /// <summary>
+        /// 订阅对象注册表：Subscribe/PSubscribe/SubscribeList/SubscribeListBroadcast 产物统一跟踪，
+        /// 客户端 Dispose 时先全部离线，避免订阅专用线程与其借出的池连接泄漏。
+        /// </summary>
+        private readonly List<IDisposable> _subscribeObjects = new List<IDisposable>();
+        private readonly object _subscribeObjectsLock = new object();
+
+        internal void TrackSubscribeObject(IDisposable so)
+        {
+            lock (_subscribeObjectsLock) _subscribeObjects.Add(so);
+        }
+
+        internal void UntrackSubscribeObject(IDisposable so)
+        {
+            lock (_subscribeObjectsLock) _subscribeObjects.Remove(so);
+        }
+
         public void Dispose()
         {
+            IDisposable[] subs;
+            lock (_subscribeObjectsLock)
+            {
+                subs = _subscribeObjects.ToArray();
+                _subscribeObjects.Clear();
+            }
+            foreach (var sub in subs)
+            {
+                try { sub.Dispose(); } catch { }
+            }
             foreach (var pool in this.Nodes.Values) pool.Dispose();
             SentinelManager?.Dispose();
         }
@@ -439,7 +477,7 @@ namespace CSRedis
                             pool._policy.SetHost(SentinelMasterValue);
                             if (pool.CheckAvailable())
                             {
-                                Trace.TraceInformation($"Redis Sentinel Pool 已切换至 {SentinelMasterValue}");
+                                Logger.LogDebug($"Redis Sentinel Pool 已切换至 {SentinelMasterValue}");
                                 //var bgcolor = Console.BackgroundColor;
                                 //var forecolor = Console.ForegroundColor;
                                 //Console.BackgroundColor = ConsoleColor.DarkGreen;
@@ -565,7 +603,7 @@ namespace CSRedis
                     if (Nodes.TryGetValue(nodeKey, out movedPool) == false)
                     {
                         var connectionString = pool._policy.BuildConnectionString(redirect.endpoint);
-                        movedPool = new RedisClientPool(connectionString, client => { });
+                        movedPool = new RedisClientPool(connectionString, client => { }, LoggerFactory.CreateLogger<RedisClientPool>());
                         if (this.TryAddNode(nodeKey, movedPool) == false)
                         {
                             movedPool.Dispose();
@@ -1445,7 +1483,9 @@ namespace CSRedis
                 subscrs.Add((r.Value.ToArray(), pool.Get()));
             }
 
-            var so = new SubscribeObject(this, chans, subscrs.ToArray(), onmessages);
+            var so = new SubscribeObject(this, chans, subscrs.ToArray(), onmessages, LoggerFactory.CreateLogger<SubscribeObject>());
+            this.TrackSubscribeObject(so);
+            so.Start();
             return so;
         }
         public class SubscribeObject : IDisposable
@@ -1454,15 +1494,26 @@ namespace CSRedis
             public string[] Channels { get; }
             public (string[] chans, Object<RedisClient> conn)[] Subscrs { get; }
             internal Dictionary<string, Action<SubscribeMessageEventArgs>> OnMessageDic;
-            public bool IsUnsubscribed { get; private set; } = true;
 
-            internal SubscribeObject(CSRedisClient redis, string[] channels, (string[] chans, Object<RedisClient> conn)[] subscrs, Dictionary<string, Action<SubscribeMessageEventArgs>> onMessageDic)
+            private volatile bool _isUnsubscribed = true;
+            private int _disposedState;
+            public bool IsUnsubscribed => _isUnsubscribed;
+
+            private ILogger Logger { get; }
+
+            internal SubscribeObject(CSRedisClient redis, 
+                string[] channels, 
+                (string[] chans, Object<RedisClient> conn)[] subscrs,
+                Dictionary<string, Action<SubscribeMessageEventArgs>> onMessageDic,
+                ILogger<SubscribeObject> logger)
             {
                 this.Redis = redis;
                 this.Channels = channels;
                 this.Subscrs = subscrs;
                 this.OnMessageDic = onMessageDic;
-                this.IsUnsubscribed = false;
+                this._isUnsubscribed = false;
+
+                Logger = logger;
 
                 AppDomain.CurrentDomain.ProcessExit += (s1, e1) =>
                 {
@@ -1477,7 +1528,13 @@ namespace CSRedis
                     };
                 }
                 catch { }
+            }
 
+            /// <summary>
+            /// 启动订阅线程（由 CSRedisClient.Subscribe 在注册跟踪后调用，保证订阅对象先被跟踪再开始收发）。
+            /// </summary>
+            internal void Start()
+            {
                 foreach (var subscr in this.Subscrs)
                 {
                     new Thread(Subscribe).Start(subscr);
@@ -1487,6 +1544,7 @@ namespace CSRedis
             private void Subscribe(object state)
             {
                 var subscr = ((string[] chans, Object<RedisClient> conn))state;
+                if (subscr.conn?.Value == null) return;
                 var pool = subscr.conn.Pool as RedisClientPool;
                 var testCSRedis_Subscribe_Keepalive = "0\r\n";// $"CSRedis_Subscribe_Keepalive{Guid.NewGuid().ToString()}";
                 var testKeepalived = true;
@@ -1520,7 +1578,7 @@ namespace CSRedis
                     }
                     catch (Exception ex)
                     {
-                        Trace.WriteLine($"订阅方法执行出错【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})：{ex.Message}\r\n{ex.StackTrace}");
+                        Logger.LogDebug($"订阅方法执行出错【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})：{ex.Message}\r\n{ex.StackTrace}");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkRed;
@@ -1570,10 +1628,7 @@ namespace CSRedis
                     try
                     {
                         subscr.conn.Value.Ping();
-
-
-                        Trace.WriteLine($"正在订阅【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})");
-
+                        Logger.LogDebug($"正在订阅【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkGreen;
@@ -1603,10 +1658,7 @@ namespace CSRedis
                     catch (Exception ex)
                     {
                         if (IsUnsubscribed) break;
-
-
-                        Trace.TraceWarning($"订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})：{ex.Message}，3秒后重连。。。");
-
+                        Logger.LogDebug($"订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})/(chans:{string.Join(",", subscr.chans)})：{ex.Message}，3秒后重连。。。");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkYellow;
@@ -1634,7 +1686,8 @@ namespace CSRedis
 
             public void Dispose()
             {
-                this.IsUnsubscribed = true;
+                if (Interlocked.CompareExchange(ref this._disposedState, 1, 0) == 1) return;
+                this._isUnsubscribed = true;
                 if (this.Subscrs != null)
                 {
                     foreach (var subscr in this.Subscrs)
@@ -1644,6 +1697,7 @@ namespace CSRedis
                         subscr.conn.Pool.Return(subscr.conn, true);
                     }
                 }
+                this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class SubscribeMessageEventArgs
@@ -1675,24 +1729,31 @@ namespace CSRedis
             foreach (var pool in Nodes)
                 redisConnections.Add(pool.Value.Get());
 
-            var so = new PSubscribeObject(this, chans, redisConnections.ToArray(), pmessage);
+            var so = new PSubscribeObject(this, chans, redisConnections.ToArray(), pmessage, LoggerFactory.CreateLogger<PSubscribeObject>());
+            this.TrackSubscribeObject(so);
+            so.Start();
             return so;
         }
         public class PSubscribeObject : IDisposable
         {
             internal CSRedisClient Redis;
             public string[] Channels { get; }
-            internal Action<PSubscribePMessageEventArgs> OnPMessage;
             public Object<RedisClient>[] RedisConnections { get; }
-            public bool IsPUnsubscribed { get; private set; } = true;
+            internal Action<PSubscribePMessageEventArgs> OnPMessage;
 
-            internal PSubscribeObject(CSRedisClient redis, string[] channels, Object<RedisClient>[] redisConnections, Action<PSubscribePMessageEventArgs> onPMessage)
+            private volatile bool _isPUnsubscribed = true;
+            private int _disposedState;
+            public bool IsPUnsubscribed => _isPUnsubscribed;
+
+            private ILogger Logger { get; }
+
+            internal PSubscribeObject(CSRedisClient redis, string[] channels, Object<RedisClient>[] redisConnections, Action<PSubscribePMessageEventArgs> onPMessage, ILogger<PSubscribeObject> logger)
             {
                 this.Redis = redis;
                 this.Channels = channels;
                 this.RedisConnections = redisConnections;
                 this.OnPMessage = onPMessage;
-                this.IsPUnsubscribed = false;
+                this._isPUnsubscribed = false;
 
                 AppDomain.CurrentDomain.ProcessExit += (s1, e1) =>
                 {
@@ -1708,6 +1769,14 @@ namespace CSRedis
                 }
                 catch { }
 
+                Logger = logger;
+            }
+
+            /// <summary>
+            /// 启动模糊订阅线程（由 CSRedisClient.PSubscribe 在注册跟踪后调用）。
+            /// </summary>
+            internal void Start()
+            {
                 foreach (var conn in this.RedisConnections)
                 {
                     new Thread(PSubscribe).Start(conn);
@@ -1717,6 +1786,7 @@ namespace CSRedis
             private void PSubscribe(object state)
             {
                 var conn = (Object<RedisClient>)state;
+                if (conn?.Value == null) return;
                 var pool = conn.Pool as RedisClientPool;
                 var psubscribeKey = string.Join("pSpLiT", Channels);
 
@@ -1759,8 +1829,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                     }
                     catch (Exception ex)
                     {
-
-                        Trace.TraceWarning($"模糊订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})：{ex.Message}\r\n{ex.StackTrace}");
+                        Logger.LogDebug($"模糊订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})：{ex.Message}\r\n{ex.StackTrace}");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkRed;
@@ -1774,13 +1843,12 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                 };
                 conn.Value.SubscriptionReceived += SubscriptionReceived;
 
-                while (true)
+                while (this._isPUnsubscribed == false)
                 {
                     try
                     {
                         conn.Value.Ping();
-
-                        Trace.TraceInformation($"正在模糊订阅【{pool.Key}】(channels:{string.Join(",", Channels)})");
+                        Logger.LogDebug($"正在模糊订阅【{pool.Key}】(channels:{string.Join(",", Channels)})");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkGreen;
@@ -1804,8 +1872,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                     catch (Exception ex)
                     {
                         if (IsPUnsubscribed) break;
-
-                        Trace.TraceWarning($"模糊订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})：{ex.Message}，3秒后重连。。。");
+                        Logger.LogDebug($"模糊订阅出错【{pool.Key}】(channels:{string.Join(",", Channels)})：{ex.Message}，3秒后重连。。。");
                         //var bgcolor = Console.BackgroundColor;
                         //var forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkYellow;
@@ -1829,7 +1896,8 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
 
             public void Dispose()
             {
-                this.IsPUnsubscribed = true;
+                if (Interlocked.CompareExchange(ref this._disposedState, 1, 0) == 1) return;
+                this._isPUnsubscribed = true;
                 if (this.RedisConnections != null)
                 {
                     foreach (var conn in this.RedisConnections)
@@ -1839,6 +1907,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                         conn.Pool.Return(conn, true);
                     }
                 }
+                this.Redis?.UntrackSubscribeObject(this);
             }
         }
         public class PSubscribePMessageEventArgs : SubscribeMessageEventArgs
@@ -1861,7 +1930,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
         public SubscribeListBroadcastObject SubscribeListBroadcast(string listKey, string clientId, Action<string> onMessage)
         {
             this.HSetNx($"{listKey}_SubscribeListBroadcast", clientId, 1);
-            var subobj = new SubscribeListBroadcastObject
+            var subobj = new SubscribeListBroadcastObject(LoggerFactory.CreateLogger<SubscribeListBroadcastObject>())
             {
                 OnDispose = () =>
                 {
@@ -1891,7 +1960,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                 }
                 catch (Exception ex)
                 {
-                    Trace.TraceWarning($"列表订阅出错(listKey:{listKey})：{ex.Message}");
+                    Logger.LogDebug(ex, $"列表订阅出错(listKey:{listKey})：{ex.Message}");
                     //var bgcolor = Console.BackgroundColor;
                     //var forecolor = Console.ForegroundColor;
                     //Console.BackgroundColor = ConsoleColor.DarkRed;
@@ -1924,6 +1993,13 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
             internal Action OnDispose;
             internal List<SubscribeListObject> SubscribeLists = new List<SubscribeListObject>();
 
+            private ILogger Logger { get; }
+
+            public SubscribeListBroadcastObject(ILogger<SubscribeListBroadcastObject> logger)
+            {
+                Logger = logger;
+            }
+
             public void Dispose()
             {
                 try { OnDispose?.Invoke(); } catch (ObjectDisposedException) { }
@@ -1950,8 +2026,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
             var listKeysStr = string.Join(", ", listKeys);
             var isMultiKey = listKeys.Length > 1;
             var subobj = new SubscribeListObject();
-
-            Trace.TraceInformation($"正在订阅列表(listKey:{listKeysStr})");
+            Logger.LogDebug($"正在订阅列表(listKey:{listKeysStr})");
             //var bgcolor = Console.BackgroundColor;
             //var forecolor = Console.ForegroundColor;
             //Console.BackgroundColor = ConsoleColor.DarkGreen;
@@ -1961,6 +2036,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
             //Console.ForegroundColor = forecolor;
             //Console.WriteLine();
 
+            this.TrackSubscribeObject(subobj);
             new Thread(() =>
             {
                 while (subobj.IsUnsubscribed == false)
@@ -1986,7 +2062,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                     }
                     catch (Exception ex)
                     {
-                        Trace.TraceWarning($"列表订阅出错(listKey:{listKeysStr})：{ex.Message}");
+                        Logger.LogDebug($"列表订阅出错(listKey:{listKeysStr})：{ex.Message}");
                         //bgcolor = Console.BackgroundColor;
                         //forecolor = Console.ForegroundColor;
                         //Console.BackgroundColor = ConsoleColor.DarkRed;
@@ -3662,7 +3738,7 @@ return 0", $"CSRedisPSubscribe{psubscribeKey}", "", trylong.ToString());
                 if (rule1 != rule2)
                 {
                     var ret = StartPipe(a => a.Dump(key).Del(key));
-                    int.TryParse(ret[1]?.ToString(), out var tryint);
+                    int.TryParse(ret[1]?.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture.NumberFormat, out var tryint);
                     if (ret[0] == null || tryint <= 0) return false;
                     return Restore(newKey, (byte[])ret[0]);
                 }
