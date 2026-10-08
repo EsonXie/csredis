@@ -125,5 +125,18 @@ namespace CSRedisCore.Tests
             Assert.Equal(0, pool.ReturnCount);
             Assert.False(so.IsPUnsubscribed);
         }
+
+        [Fact]
+        public void PSubscribeObject_Start_Then_DisposeTwice_ReturnsConnectionOnce()
+        {
+            var pool = new FakePool();
+            var so = CreatePUnstarted(pool);
+            so.Start();
+            so.Dispose();
+            so.Dispose();
+            Thread.Sleep(200); // 线程于入口 null 守卫处安静退出（不进入循环与 Ping）
+            Assert.True(so.IsPUnsubscribed);
+            Assert.Equal(1, pool.ReturnCount);
+        }
     }
 }
